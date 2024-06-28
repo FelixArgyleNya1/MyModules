@@ -1,33 +1,29 @@
-from hikka.modules import Module, loader, utils
 import urllib.request
 import json
 
-@loader.tds
-class RedditImageSearchModule(Module):
+class RedditImageSearchModule:
     """Inline пошук фотографій з NSFW контентом через Reddit"""
-    strings = {"name": "RedditImageSearch"}
 
     async def client_ready(self, client, db):
         self.client = client
 
-    @loader.unrestricted
     async def piccmd(self, message):
         """Використання: .pic <пошуковий запит>"""
-        query = utils.get_args_raw(message)
+        query = message.text.split(maxsplit=1)[1]
         if not query:
-            await utils.answer(message, "Введи пошуковий запит")
+            await message.answer("Введи пошуковий запит")
             return
 
         url = f"https://www.reddit.com/search.json?q={query}&include_over_18=on&sort=relevance"
         headers = {"User-Agent": "Mozilla/5.0"}
-        
+
         req = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(req) as response:
                 data = json.loads(response.read().decode())
 
             if "data" not in data or not data["data"]["children"]:
-                await utils.answer(message, "Фотографій не знайдено")
+                await message.answer("Фотографій не знайдено")
                 return
 
             results = []
@@ -35,7 +31,7 @@ class RedditImageSearchModule(Module):
                 post = item["data"]
                 if "url_overridden_by_dest" in post and post["url_overridden_by_dest"].endswith(('.jpg', '.png', '.gif')):
                     results.append(
-                        self.client.inline.result(
+                        await self.client.inline_result(
                             type='photo',
                             id=post["id"],
                             photo_url=post["url_overridden_by_dest"],
@@ -47,10 +43,9 @@ class RedditImageSearchModule(Module):
                         )
                     )
 
-            await self.client.inline.form(message=message, results=results)
+            await self.client.inline_query(message.peer_id, results)
         except Exception as e:
-            await utils.answer(message, f"Сталася помилка: {e}")
+            await message.answer(f"Сталася помилка: {e}")
 
-    @loader.unrestricted
     async def watcher(self, message):
         pass  # Необхідно, щоб модуль підтримував inline режим
